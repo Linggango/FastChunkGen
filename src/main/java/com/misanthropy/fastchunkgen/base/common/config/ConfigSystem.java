@@ -53,6 +53,32 @@ public class ConfigSystem {
         CONFIG = config;
     }
 
+    public static boolean readBoolean(String key, boolean fallback) {
+        final Object value = CONFIG.get(key);
+        if (value instanceof Boolean b) return b;
+        return fallback;
+    }
+
+    public static long readLong(String key, long fallback) {
+        final Object value = CONFIG.get(key);
+        if (value instanceof Number n) return n.longValue();
+        return fallback;
+    }
+
+    public static String readString(String key, String fallback) {
+        final Object value = CONFIG.get(key);
+        if (value instanceof String s && !s.equals("default")) return s;
+        return fallback;
+    }
+
+    public static void write(String key, Object value) {
+        CONFIG.set(key, value);
+    }
+
+    public static void saveToDisk() {
+        CONFIG.save();
+    }
+
     public static void flushConfig() {
         purgeUnusedRecursively("", CONFIG);
         CONFIG.save();

@@ -46,11 +46,12 @@ public class FastChunkGen {
         TheMod.init();
         ConfigSystem.flushConfig();
         reportCompat();
+        com.misanthropy.fastchunkgen.client.ClientSetup.init();
     }
 
     private static void reportCompat() {
         if (ModCompat.isLithiumFamilyPresent()) {
-            LOGGER.info("Lithium-family mod detected, disabled overlapping NBT and chunk priority patches");
+            LOGGER.info("Lithium-family mod detected, disabled our duplicate NBT copy patch");
         }
         if (ModCompat.isModernFixFeatureEnabled("mixin.perf.worldgen_allocation")) {
             if (com.misanthropy.fastchunkgen.opts.allocs.Config.overrideModernFixWorldGenAllocations) {

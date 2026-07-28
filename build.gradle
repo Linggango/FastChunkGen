@@ -100,6 +100,13 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
     mavenCentral()
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content {
+            includeGroup 'maven.modrinth'
+        }
+    }
 }
 
 configurations {
@@ -117,6 +124,8 @@ dependencies {
     minecraftLibrary("com.ibm.async:asyncutil:${async_util_version}") {
         transitive = false
     }
+
+    compileOnly fg.deobf("maven.modrinth:embeddium:${embeddium_version}")
 
     compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:${mixinextras_version}"))
     implementation(jarJar("io.github.llamalad7:mixinextras-forge:${mixinextras_version}")) {

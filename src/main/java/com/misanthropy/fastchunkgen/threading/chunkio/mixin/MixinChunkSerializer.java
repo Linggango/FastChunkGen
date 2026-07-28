@@ -60,6 +60,7 @@ public class MixinChunkSerializer {
     private static CompoundTag onChunkGetPackedBlockEntityNbt(ChunkAccess chunk, BlockPos pos) {
         final AsyncSerializationManager.Scope scope = AsyncSerializationManager.getScope(chunk.getPos());
         if (scope == null) return chunk.getBlockEntityNbtForSaving(pos);
+        if (scope.lazyBlockEntities) return chunk.getBlockEntityNbtForSaving(pos);
         final CompoundTag nbtCompound = scope.blockEntityNbts.get(pos);
         if (nbtCompound == null && AsyncSerializationManager.DEBUG) LOGGER.warn("Block Entity at {} for block {} doesn't exist", pos, chunk.getBlockState(pos).getBlock());
         return nbtCompound;

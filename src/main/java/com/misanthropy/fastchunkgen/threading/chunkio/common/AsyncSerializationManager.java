@@ -58,6 +58,7 @@ public class AsyncSerializationManager {
         public final Map<LightLayer, LayerLightEventListener> lighting;
         public final Set<BlockPos> blockEntityPositions;
         public final Map<BlockPos, CompoundTag> blockEntityNbts;
+        public final boolean lazyBlockEntities;
         private final AtomicBoolean isOpen = new AtomicBoolean(false);
 
         public Scope(ChunkAccess chunk, ServerLevel world) {
@@ -66,10 +67,11 @@ public class AsyncSerializationManager {
             this.blockEntityPositions = chunk.getBlockEntitiesPos();
 
             final boolean isLevelChunk = chunk instanceof LevelChunk;
+            final boolean snapshotNow = Config.serializeBlockEntitiesOnMainThread;
             final Map<BlockPos, CompoundTag> nbts = new Object2ObjectOpenHashMap<>(this.blockEntityPositions.size());
             for (BlockPos blockPos : this.blockEntityPositions) {
                 CompoundTag serialized = null;
-                final BlockEntity blockEntity = chunk.getBlockEntity(blockPos);
+                final BlockEntity blockEntity = snapshotNow ? chunk.getBlockEntity(blockPos) : null;
                 if (blockEntity != null && !blockEntity.isRemoved()) {
                     try {
                         serialized = blockEntity.saveWithFullMetadata();
@@ -88,6 +90,7 @@ public class AsyncSerializationManager {
                 nbts.put(blockPos, serialized);
             }
             this.blockEntityNbts = nbts;
+            this.lazyBlockEntities = !snapshotNow;
 
             if (DEBUG && this.blockEntityPositions.size() != this.blockEntityNbts.size()) {
                 LOGGER.warn("Block entities size mismatch! expected {} but got {}", this.blockEntityPositions.size(), this.blockEntityNbts.size());

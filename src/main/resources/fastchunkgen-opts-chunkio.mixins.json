@@ -1,0 +1,12 @@
+{
+  "parent": "fastchunkgen.mixins.json",
+  "required": true,
+  "package": "com.misanthropy.fastchunkgen.opts.chunkio.mixin",
+  "plugin": "com.misanthropy.fastchunkgen.opts.chunkio.MixinPlugin",
+  "refmap": "fastchunkgen.refmap.json",
+  "mixins": [
+    "compression.modify_default_chunk_compression.MixinRegionFile",
+    "hide_sync_disk_writes_behind_flag.MixinRegionBasedStorage",
+    "limit_nbt_cache.MixinStorageIoWorker"
+  ]
+}

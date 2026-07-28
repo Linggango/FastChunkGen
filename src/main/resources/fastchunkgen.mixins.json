@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.misanthropy.fastchunkgen.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixinPriority": 1100,
+  "refmap": "fastchunkgen.refmap.json",
+  "mixins": [
+  ],
+  "client": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "conformVisibility": true
+  }
+}

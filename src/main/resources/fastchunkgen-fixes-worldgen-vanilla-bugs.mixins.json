@@ -1,0 +1,10 @@
+{
+  "parent": "fastchunkgen.mixins.json",
+  "required": true,
+  "package": "com.misanthropy.fastchunkgen.fixes.worldgen.vanilla_bugs.mixin",
+  "plugin": "com.misanthropy.fastchunkgen.base.common.ModuleMixinPlugin",
+  "refmap": "fastchunkgen.refmap.json",
+  "mixins": [
+    "incorrect_required_status_for_generation_in_structure_references_status.MixinChunkStatus"
+  ]
+}

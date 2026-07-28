@@ -1,0 +1,15 @@
+{
+  "parent": "fastchunkgen.mixins.json",
+  "required": true,
+  "package": "com.misanthropy.fastchunkgen.rewrites.chunk_serializer.mixin",
+  "plugin": "com.misanthropy.fastchunkgen.base.common.ModuleMixinPlugin",
+  "refmap": "fastchunkgen.refmap.json",
+  "mixins": [
+    "ChunkStatusMixin",
+    "GenerationStepCarverMixin",
+    "HeightMapTypeMixin",
+    "IdentifierMixin",
+    "IStarlightSaveState",
+    "MixinThreadedAnvilChunkStorage"
+  ]
+}

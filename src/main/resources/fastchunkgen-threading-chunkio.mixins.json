@@ -1,0 +1,17 @@
+{
+  "parent": "fastchunkgen.mixins.json",
+  "required": true,
+  "package": "com.misanthropy.fastchunkgen.threading.chunkio.mixin",
+  "plugin": "com.misanthropy.fastchunkgen.base.common.ModuleMixinPlugin",
+  "refmap": "fastchunkgen.refmap.json",
+  "mixins": [
+    "MixinBlender",
+    "MixinChunkRegion",
+    "MixinChunkSerializer",
+    "MixinProtoChunk",
+    "MixinSerializingRegionBasedStorage",
+    "MixinStorageIoWorker",
+    "MixinThreadedAnvilChunkStorage",
+    "gc_free_serializer.MixinChunkDataSerializer"
+  ]
+}

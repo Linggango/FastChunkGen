@@ -32,7 +32,14 @@ public class FastChunkGen {
             "com.misanthropy.fastchunkgen.rewrites.chunkio.ModuleEntryPoint",
             "com.misanthropy.fastchunkgen.threading.chunkio.ModuleEntryPoint",
             "com.misanthropy.fastchunkgen.threading.lighting.ModuleEntryPoint",
-            "com.misanthropy.fastchunkgen.threading.worldgen.ModuleEntryPoint"
+            "com.misanthropy.fastchunkgen.threading.worldgen.ModuleEntryPoint",
+            "com.misanthropy.fastchunkgen.fixes.worldgen.threading_issues.common.Config",
+            "com.misanthropy.fastchunkgen.opts.allocs.Config",
+            "com.misanthropy.fastchunkgen.opts.chunkio.common.Config",
+            "com.misanthropy.fastchunkgen.opts.scheduling.common.Config",
+            "com.misanthropy.fastchunkgen.opts.worldgen.vanilla.common.Config",
+            "com.misanthropy.fastchunkgen.threading.chunkio.common.Config",
+            "com.misanthropy.fastchunkgen.threading.worldgen.common.Config"
     );
 
     public FastChunkGen() {

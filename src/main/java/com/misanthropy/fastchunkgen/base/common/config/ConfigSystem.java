@@ -56,19 +56,33 @@ public class ConfigSystem {
     public static boolean readBoolean(String key, boolean fallback) {
         final Object value = CONFIG.get(key);
         if (value instanceof Boolean b) return b;
+        final String raw = readString(key, null);
+        if (raw != null) {
+            if (raw.equalsIgnoreCase("true")) return true;
+            if (raw.equalsIgnoreCase("false")) return false;
+        }
         return fallback;
     }
 
     public static long readLong(String key, long fallback) {
         final Object value = CONFIG.get(key);
         if (value instanceof Number n) return n.longValue();
+        final String raw = readString(key, null);
+        if (raw != null) {
+            try {
+                return Long.parseLong(raw.trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
         return fallback;
     }
 
     public static String readString(String key, String fallback) {
         final Object value = CONFIG.get(key);
-        if (value instanceof String s && !s.equals("default")) return s;
-        return fallback;
+        if (value == null) return fallback;
+        if (value instanceof Enum<?> e) return e.name();
+        final String raw = String.valueOf(value);
+        return raw.equals("default") ? fallback : raw;
     }
 
     public static void write(String key, Object value) {
@@ -79,8 +93,14 @@ public class ConfigSystem {
         CONFIG.save();
     }
 
+    private static final int MINIMUM_EXPECTED_KEYS = 24;
+
     public static void flushConfig() {
-        purgeUnusedRecursively("", CONFIG);
+        if (visitedConfig.size() < MINIMUM_EXPECTED_KEYS) {
+            LOGGER.warn("Only {} config keys were registered, skipping cleanup to avoid discarding settings", visitedConfig.size());
+        } else {
+            purgeUnusedRecursively("", CONFIG);
+        }
         CONFIG.save();
     }
 

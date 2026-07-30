@@ -23,8 +23,7 @@ public class C2MEStorageVanillaInterface extends IOWorker implements IDirectStor
 
     @Override
     public CompletableFuture<Void> store(ChunkPos pos, @Nullable CompoundTag nbt) {
-        this.backend.setChunkData(pos.toLong(), nbt);
-        return CompletableFuture.completedFuture(null);
+        return this.backend.setChunkData(pos.toLong(), nbt);
     }
 
     @Override
@@ -34,7 +33,7 @@ public class C2MEStorageVanillaInterface extends IOWorker implements IDirectStor
 
     @Override
     public CompletableFuture<Void> synchronize(boolean sync) {
-        return this.backend.flush(true);
+        return this.backend.flush(sync);
     }
 
     @Override
@@ -45,7 +44,7 @@ public class C2MEStorageVanillaInterface extends IOWorker implements IDirectStor
 
     @Override
     public void close() {
-        this.backend.close();
+        this.backend.close().join();
     }
 
     @Override
@@ -56,7 +55,6 @@ public class C2MEStorageVanillaInterface extends IOWorker implements IDirectStor
 
     @Override
     public CompletableFuture<Void> setRawChunkData(ChunkPos pos, byte[] data) {
-        this.backend.setChunkData(pos.toLong(), data);
-        return CompletableFuture.completedFuture(null);
+        return this.backend.setChunkData(pos.toLong(), data);
     }
 }

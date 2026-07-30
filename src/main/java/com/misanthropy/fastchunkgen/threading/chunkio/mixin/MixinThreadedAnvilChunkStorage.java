@@ -6,6 +6,7 @@ import com.misanthropy.fastchunkgen.base.common.registry.SerializerAccess;
 import com.misanthropy.fastchunkgen.base.common.theinterface.IDirectStorage;
 import com.misanthropy.fastchunkgen.base.common.util.SneakyThrow;
 import com.misanthropy.fastchunkgen.base.mixin.access.IVersionedChunkStorage;
+import com.misanthropy.fastchunkgen.rewrites.chunkio.common.ChunkWriteCompletion;
 import com.misanthropy.fastchunkgen.threading.chunkio.common.AsyncSerializationManager;
 import com.misanthropy.fastchunkgen.threading.chunkio.common.BlendingInfoUtil;
 import com.misanthropy.fastchunkgen.threading.chunkio.common.ChunkIoMainThreadTaskUtils;
@@ -365,10 +366,12 @@ public abstract class MixinThreadedAnvilChunkStorage extends ChunkStorage implem
                                     if (either.left().isPresent()) {
                                         final CompoundTag serialized = either.left().get();
                                         return ForgeChunkDataEvents.fireSave(this.level, chunk, serialized, this.mainThreadExecutor)
-                                                .thenRun(() -> this.write(chunkPos, serialized));
+                                                .thenCompose(unused -> {
+                                                    this.write(chunkPos, serialized);
+                                                    return ChunkWriteCompletion.take();
+                                                });
                                     } else {
-                                        ((IDirectStorage) ((IVersionedChunkStorage) this).getWorker()).setRawChunkData(chunkPos, either.right().get());
-                                        return CompletableFuture.completedFuture((Void) null);
+                                        return ((IDirectStorage) ((IVersionedChunkStorage) this).getWorker()).setRawChunkData(chunkPos, either.right().get());
                                     }
                                 })
                                 .handle((unused, throwable) -> {
@@ -378,6 +381,7 @@ public abstract class MixinThreadedAnvilChunkStorage extends ChunkStorage implem
                                         while (actual instanceof CompletionException e) actual = e.getCause();
                                         if (!(actual instanceof TaskCancellationException)) {
                                             LOGGER.error("Failed to save chunk {},{} asynchronously, falling back to sync saving", chunkPos.x, chunkPos.z, throwable);
+                                            chunk.setUnsaved(true);
                                             final CompletableFuture<ChunkAccess> savingFuture = holder.getChunkToSave();
                                             if (savingFuture != originalSavingFuture) {
                                                 savingFuture.handleAsync((_unused, __unused) -> save(chunk), this.mainThreadExecutor);
@@ -394,6 +398,7 @@ public abstract class MixinThreadedAnvilChunkStorage extends ChunkStorage implem
                 return true;
             } catch (Exception var5) {
                 LOGGER.error((String) "Failed to save chunk {},{}", (Object) chunkPos.x, chunkPos.z, var5);
+                chunk.setUnsaved(true);
                 return false;
             }
         }

@@ -71,6 +71,7 @@ public class AsyncSerializationManager {
             final Map<BlockPos, CompoundTag> nbts = new Object2ObjectOpenHashMap<>(this.blockEntityPositions.size());
             for (BlockPos blockPos : this.blockEntityPositions) {
                 CompoundTag serialized = null;
+                Throwable failure = null;
                 final BlockEntity blockEntity = snapshotNow ? chunk.getBlockEntity(blockPos) : null;
                 if (blockEntity != null && !blockEntity.isRemoved()) {
                     try {
@@ -79,11 +80,17 @@ public class AsyncSerializationManager {
                     } catch (Throwable t) {
                         LOGGER.error("Failed to serialize block entity {} at {} in chunk {}, falling back to its stored data", blockEntity.getType(), blockPos, this.pos, t);
                         serialized = null;
+                        failure = t;
                     }
                 }
                 if (serialized == null) {
                     final CompoundTag stored = chunk.getBlockEntityNbt(blockPos);
-                    if (stored == null) continue;
+                    if (stored == null) {
+                        if (failure != null) {
+                            throw new RuntimeException("Cannot serialize block entity %s at %s in chunk %s".formatted(blockEntity.getType(), blockPos, this.pos), failure);
+                        }
+                        continue;
+                    }
                     serialized = stored.copy();
                     if (isLevelChunk) serialized.putBoolean("keepPacked", true);
                 }

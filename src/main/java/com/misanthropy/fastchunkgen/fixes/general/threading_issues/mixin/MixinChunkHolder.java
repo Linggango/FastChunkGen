@@ -53,12 +53,8 @@ public abstract class MixinChunkHolder {
         // TODO [VanillaCopy]
         int i = targetStatus.getIndex();
         CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> completableFuture = this.futures.get(i);
-        if (completableFuture != null) {
-            Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure> either = completableFuture.getNow(null);
-            boolean bl = either != null && either.right().isPresent();
-            if (!bl) {
-                return completableFuture;
-            }
+        if (completableFuture != null && !fcg$needsReschedule(completableFuture)) {
+            return completableFuture;
         }
 
         CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> future;
@@ -66,12 +62,8 @@ public abstract class MixinChunkHolder {
         synchronized (this.schedulingMutex) {
             // copied from above
             completableFuture = this.futures.get(i);
-            if (completableFuture != null) {
-                Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure> either = completableFuture.getNow(null);
-                boolean bl = either != null && either.right().isPresent();
-                if (!bl) {
-                    return completableFuture;
-                }
+            if (completableFuture != null && !fcg$needsReschedule(completableFuture)) {
+                return completableFuture;
             }
             if (ChunkLevel.generationStatus(this.ticketLevel).isOrAfter(targetStatus)) {
                 future = new CompletableFuture<>();
@@ -104,7 +96,21 @@ public abstract class MixinChunkHolder {
             future.complete(either);
         });
         this.futures.set(i, completableFuture2);
+        completableFuture2.whenComplete((either, throwable) -> {
+            if (throwable != null) {
+                synchronized (this.schedulingMutex) {
+                    this.futures.compareAndSet(i, completableFuture2, null);
+                }
+            }
+        });
         return completableFuture2;
+    }
+
+    @Unique
+    private static boolean fcg$needsReschedule(CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> future) {
+        if (future.isCompletedExceptionally()) return true;
+        final Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure> either = future.getNow(null);
+        return either != null && either.right().isPresent();
     }
 
     @Dynamic

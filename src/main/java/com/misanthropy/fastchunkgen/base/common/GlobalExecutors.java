@@ -18,6 +18,10 @@ public class GlobalExecutors {
 //            true
 //    );
     public static final ExecutorService executor = Executors.newFixedThreadPool(GLOBAL_EXECUTOR_PARALLELISM, factory);
+
+    private static final C2MENormalWorkerThreadFactory ioFactory = new C2MENormalWorkerThreadFactory("fastchunkgen-io", "FastChunkGen IO worker #%d", Thread.NORM_PRIORITY - 1);
+
+    public static final ExecutorService ioExecutor = Executors.newFixedThreadPool(Math.max(2, GLOBAL_EXECUTOR_PARALLELISM / 2), ioFactory);
     public static final Executor invokingExecutor = r -> {
         if (Thread.currentThread().getThreadGroup() == factory.getThreadGroup()) {
             r.run();

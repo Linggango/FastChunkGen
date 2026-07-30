@@ -7,7 +7,9 @@ import com.misanthropy.fastchunkgen.base.common.util.SneakyThrow;
 import com.misanthropy.fastchunkgen.base.mixin.access.IRegionBasedStorage;
 import com.misanthropy.fastchunkgen.base.mixin.access.IRegionFile;
 import com.misanthropy.fastchunkgen.opts.chunkio.common.ConfigConstants;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceLinkedOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
@@ -67,6 +69,7 @@ public class C2MEStorageThread extends Thread {
         }
     };
     private final ObjectOpenHashSet<CompletableFuture<Void>> writeFutures = new ObjectOpenHashSet<>();
+    private final Long2ObjectOpenHashMap<ObjectArrayList<CompletableFuture<Void>>> writeCompletions = new Long2ObjectOpenHashMap<>();
     private final Object sync = new Object();
 
     public C2MEStorageThread(Path directory, boolean dsync, String name) {
@@ -88,12 +91,17 @@ public class C2MEStorageThread extends Thread {
 
             if (!hasWork) {
                 if (this.closing.get()) {
-                    flush0(true);
+                    try {
+                        flush0(true);
+                    } catch (Throwable t) {
+                        LOGGER.error("Error flushing storage on close", t);
+                    }
                     try {
                         this.storage.close();
                     } catch (Throwable t) {
                         LOGGER.error("Error closing storage", t);
                     }
+                    failRemainingRequests();
                     this.closeFuture.complete(null);
                     break;
                 } else {
@@ -164,37 +172,48 @@ public class C2MEStorageThread extends Thread {
                 .thenApply(Function.identity());
     }
 
-    public void setChunkData(long pos, @Nullable CompoundTag nbt) {
-        final boolean empty = this.pendingWriteRequests.isEmpty();
-        this.pendingWriteRequests.add(new WriteRequest(pos, nbt != null ? Either.left(nbt) : null));
-        if (empty) this.wakeUp();
+    public CompletableFuture<Void> setChunkData(long pos, @Nullable CompoundTag nbt) {
+        return setChunkData0(pos, nbt != null ? Either.left(nbt) : null);
     }
 
-    public void setChunkData(long pos, @Nullable byte[] data) {
+    public CompletableFuture<Void> setChunkData(long pos, @Nullable byte[] data) {
+        return setChunkData0(pos, data != null ? Either.right(data) : null);
+    }
+
+    private CompletableFuture<Void> setChunkData0(long pos, @Nullable Either<CompoundTag, byte[]> data) {
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        if (this.closing.get()) {
+            future.completeExceptionally(new CancellationException("Storage is closing, write for %s dropped".formatted(new ChunkPos(pos))));
+            return future;
+        }
         final boolean empty = this.pendingWriteRequests.isEmpty();
-        this.pendingWriteRequests.add(new WriteRequest(pos, data != null ? Either.right(data) : null));
+        this.pendingWriteRequests.add(new WriteRequest(pos, data, future));
         if (empty) this.wakeUp();
+        return future;
     }
 
     public CompletableFuture<Void> flush(boolean sync) {
+        if (this.closeFuture.isDone()) return this.closeFuture.thenApply(Function.identity());
         return CompletableFuture.runAsync(() -> flush0(sync), this.executor);
     }
 
     private void flush0(boolean sync) {
-        try {
-            while (true) {
-                runWriteFutureGC();
-                if (handleTasks()) continue;
-                if (handlePendingReads()) continue;
-                if (handlePendingWrites()) continue;
-                if (writeBacklog()) continue;
+        while (true) {
+            runWriteFutureGC();
+            if (handleTasks()) continue;
+            if (handlePendingReads()) continue;
+            if (handlePendingWrites()) continue;
+            if (writeBacklog()) continue;
 
-                break;
+            break;
+        }
+        flushBacklog();
+        if (sync) {
+            try {
+                this.storage.flush();
+            } catch (Throwable t) {
+                throw new RuntimeException("Error flushing storage", t);
             }
-            flushBacklog();
-            if (sync) this.storage.flush();
-        } catch (Throwable t) {
-            LOGGER.error("Error flushing storage", t);
         }
     }
 
@@ -202,6 +221,22 @@ public class C2MEStorageThread extends Thread {
         this.closing.set(true);
         this.wakeUp();
         return this.closeFuture.thenApply(Function.identity());
+    }
+
+    private void failRemainingRequests() {
+        ReadRequest readRequest;
+        while ((readRequest = this.pendingReadRequests.poll()) != null) {
+            readRequest.future.completeExceptionally(new CancellationException("Storage closed before read completed"));
+        }
+        WriteRequest writeRequest;
+        while ((writeRequest = this.pendingWriteRequests.poll()) != null) {
+            LOGGER.error("Chunk {} was queued for writing after storage close, data is lost", new ChunkPos(writeRequest.pos));
+            writeRequest.future.completeExceptionally(new CancellationException("Storage closed before write completed"));
+        }
+        for (long pos : this.writeCompletions.keySet().toLongArray()) {
+            LOGGER.error("Chunk {} was still pending when storage closed, data is lost", new ChunkPos(pos));
+            completeWriteFutures(pos, new CancellationException("Storage closed before write completed"));
+        }
     }
 
     private boolean handleTasks() {
@@ -225,8 +260,18 @@ public class C2MEStorageThread extends Thread {
             hasWork = true;
             this.cache.put(writeRequest.pos, writeRequest.nbt);
             this.writeBacklog.put(writeRequest.pos, writeRequest.nbt);
+            this.writeCompletions.computeIfAbsent(writeRequest.pos, unused -> new ObjectArrayList<>(1)).add(writeRequest.future);
         }
         return hasWork;
+    }
+
+    private void completeWriteFutures(long pos, @Nullable Throwable throwable) {
+        final ObjectArrayList<CompletableFuture<Void>> futures = this.writeCompletions.remove(pos);
+        if (futures == null) return;
+        for (CompletableFuture<Void> future : futures) {
+            if (throwable != null) future.completeExceptionally(throwable);
+            else future.complete(null);
+        }
     }
 
     private boolean handlePendingReads() {
@@ -244,7 +289,7 @@ public class C2MEStorageThread extends Thread {
                     future.complete(null);
                 } else if (cached.left().isPresent()) {
                     if (scanner != null) {
-                        GlobalExecutors.executor.execute(() -> {
+                        GlobalExecutors.ioExecutor.execute(() -> {
                             try {
                                 cached.left().get().acceptAsRoot(scanner);
                                 future.complete(null);
@@ -270,7 +315,7 @@ public class C2MEStorageThread extends Thread {
                                     SneakyThrow.sneaky(e);
                                     return null; // unreachable
                                 }
-                            }, GlobalExecutors.executor)
+                            }, GlobalExecutors.ioExecutor)
                             .thenAccept(future::complete)
                             .exceptionally(throwable -> {
                                 future.completeExceptionally(throwable);
@@ -336,7 +381,7 @@ public class C2MEStorageThread extends Thread {
                     SneakyThrow.sneaky(t);
                     return null; // Unreachable anyway
                 }
-            }, GlobalExecutors.executor).handle((compound, throwable) -> {
+            }, GlobalExecutors.ioExecutor).handle((compound, throwable) -> {
                 if (throwable != null) future.completeExceptionally(throwable);
                 else future.complete(compound);
                 return null;
@@ -349,14 +394,17 @@ public class C2MEStorageThread extends Thread {
     private void writeChunk(long pos, Either<CompoundTag, byte[]> nbt) {
         if (nbt == null) {
             if (this.cache.get(pos) == null) {
+                Throwable error = null;
                 try {
                     final ChunkPos pos1 = new ChunkPos(pos);
                     final RegionFile regionFile = ((IRegionBasedStorage) (Object) this.storage).invokeGetRegionFile(pos1);
                     regionFile.clear(pos1);
                 } catch (Throwable t) {
-                    LOGGER.error("Error writing chunk %s".formatted(new ChunkPos(pos)), t);
+                    LOGGER.error("Error deleting chunk %s".formatted(new ChunkPos(pos)), t);
+                    error = t;
                 }
                 this.cache.remove(pos);
+                completeWriteFutures(pos, error);
             }
         } else {
             final CompletableFuture<Void> future = CompletableFuture.supplyAsync(() -> {
@@ -380,25 +428,28 @@ public class C2MEStorageThread extends Thread {
                     SneakyThrow.sneaky(t);
                     return null; // Unreachable anyway
                 }
-            }, GlobalExecutors.executor).thenAcceptAsync(bytes -> {
-                if (nbt == this.cache.get(pos)) { // only write if match to avoid overwrites
-                    try {
-                        final ChunkPos pos1 = new ChunkPos(pos);
-                        final RegionFile regionFile = ((IRegionBasedStorage) (Object) this.storage).invokeGetRegionFile(pos1);
-                        ByteBuffer byteBuffer = bytes.asByteBuffer();
-                        // TODO [VanillaCopy] RegionFile.ChunkBuffer
-                        byteBuffer.putInt(0, bytes.size() - 5 + 1);
-                        ((IRegionFile) regionFile).invokeWriteChunk(pos1, byteBuffer);
-                    } catch (Throwable t) {
-                        SneakyThrow.sneaky(t);
-                    }
-                    this.cache.remove(pos);
+            }, GlobalExecutors.ioExecutor).thenApplyAsync(bytes -> {
+                if (nbt != this.cache.get(pos)) return Boolean.FALSE;
+                try {
+                    final ChunkPos pos1 = new ChunkPos(pos);
+                    final RegionFile regionFile = ((IRegionBasedStorage) (Object) this.storage).invokeGetRegionFile(pos1);
+                    ByteBuffer byteBuffer = bytes.asByteBuffer();
+                    // TODO [VanillaCopy] RegionFile.ChunkBuffer
+                    byteBuffer.putInt(0, bytes.size() - 5 + 1);
+                    ((IRegionFile) regionFile).invokeWriteChunk(pos1, byteBuffer);
+                } catch (Throwable t) {
+                    SneakyThrow.sneaky(t);
                 }
-            }, this.executor).handleAsync((unused, throwable) -> {
-                if (throwable != null) LOGGER.error("Error writing chunk %s".formatted(new ChunkPos(pos)), throwable);
-                // TODO error retry
-
-                return null;
+                this.cache.remove(pos);
+                return Boolean.TRUE;
+            }, this.executor).handleAsync((written, throwable) -> {
+                if (throwable != null) {
+                    LOGGER.error("Error writing chunk %s".formatted(new ChunkPos(pos)), throwable);
+                    completeWriteFutures(pos, throwable);
+                } else if (written) {
+                    completeWriteFutures(pos, null);
+                }
+                return (Void) null;
             }, this.executor);
             this.writeFutures.add(future);
         }
@@ -407,7 +458,7 @@ public class C2MEStorageThread extends Thread {
     private record ReadRequest(long pos, CompletableFuture<CompoundTag> future, @Nullable StreamTagVisitor scanner) {
     }
 
-    private record WriteRequest(long pos, Either<CompoundTag, byte[]> nbt) {
+    private record WriteRequest(long pos, @Nullable Either<CompoundTag, byte[]> nbt, CompletableFuture<Void> future) {
     }
 
 }

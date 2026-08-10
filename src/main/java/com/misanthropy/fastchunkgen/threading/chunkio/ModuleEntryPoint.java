@@ -8,6 +8,8 @@ public class ModuleEntryPoint {
             .key("ioSystem.async")
             .comment("Load and unload chunks off the server thread.")
             .incompatibleMod("radon", "*")
+            // anyone reading this, don't even use hariums mods to begin with.
+            .incompatibleMod("harium", "*")
             .getBoolean(true, false);
 
 }

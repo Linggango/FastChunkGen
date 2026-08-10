@@ -63,9 +63,8 @@ public class C2MEStorageThread extends Thread {
         if (Thread.currentThread() == this) {
             command.run();
         } else {
-            final boolean empty = pendingTasks.isEmpty();
             pendingTasks.add(command);
-            if (empty) this.wakeUp();
+            this.wakeUp();
         }
     };
     private final ObjectOpenHashSet<CompletableFuture<Void>> writeFutures = new ObjectOpenHashSet<>();
@@ -85,7 +84,7 @@ public class C2MEStorageThread extends Thread {
         main_loop:
         while (true) {
             boolean hasWork = false;
-            hasWork |= pollTasks();
+            hasWork |= pollTasksSafely();
 
             runWriteFutureGC();
 
@@ -106,10 +105,10 @@ public class C2MEStorageThread extends Thread {
                     break;
                 } else {
                     // attempt to spin-wait before sleeping
-                    if (!pollTasks()) {
+                    if (!pollTasksSafely()) {
                         Thread.interrupted(); // clear interrupt flag
                         for (int i = 0; i < SPIN_ITERATIONS; i ++) {
-                            if (pollTasks()) continue main_loop;
+                            if (pollTasksSafely()) continue main_loop;
                             LockSupport.parkNanos("Spin-waiting for tasks", SPIN_PARK_NANOS);
                         }
                     }
@@ -124,6 +123,15 @@ public class C2MEStorageThread extends Thread {
             }
         }
         LOGGER.info("Storage thread {} stopped", this);
+    }
+
+    private boolean pollTasksSafely() {
+        try {
+            return pollTasks();
+        } catch (Throwable t) {
+            LOGGER.error("Error while processing storage tasks", t);
+            return false;
+        }
     }
 
     private boolean pollTasks() {
@@ -157,9 +165,8 @@ public class C2MEStorageThread extends Thread {
             future.completeExceptionally(new CancellationException());
             return future.thenApply(Function.identity());
         }
-        final boolean empty = this.pendingReadRequests.isEmpty();
         this.pendingReadRequests.add(new ReadRequest(pos, future, scanner));
-        if (empty) this.wakeUp();
+        this.wakeUp();
         if (DEBUG) {
             future.thenApply(Function.identity()).orTimeout(60, TimeUnit.SECONDS).exceptionally(throwable -> {
                 if (throwable instanceof TimeoutException) {
@@ -186,9 +193,8 @@ public class C2MEStorageThread extends Thread {
             future.completeExceptionally(new CancellationException("Storage is closing, write for %s dropped".formatted(new ChunkPos(pos))));
             return future;
         }
-        final boolean empty = this.pendingWriteRequests.isEmpty();
         this.pendingWriteRequests.add(new WriteRequest(pos, data, future));
-        if (empty) this.wakeUp();
+        this.wakeUp();
         return future;
     }
 
@@ -283,48 +289,53 @@ public class C2MEStorageThread extends Thread {
             final long pos = readRequest.pos;
             final CompletableFuture<CompoundTag> future = readRequest.future;
             final StreamTagVisitor scanner = readRequest.scanner;
-            if (this.cache.containsKey(pos)) {
-                final Either<CompoundTag, byte[]> cached = this.cache.get(pos);
-                if (cached == null) {
-                    future.complete(null);
-                } else if (cached.left().isPresent()) {
-                    if (scanner != null) {
-                        GlobalExecutors.ioExecutor.execute(() -> {
-                            try {
-                                cached.left().get().acceptAsRoot(scanner);
-                                future.complete(null);
-                            } catch (Throwable t) {
-                                future.completeExceptionally(t);
-                            }
-                        });
-                    } else {
-                        future.complete(cached.left().get());
-                    }
-                } else {
-                    CompletableFuture.supplyAsync(() -> {
+            try {
+                if (this.cache.containsKey(pos)) {
+                    final Either<CompoundTag, byte[]> cached = this.cache.get(pos);
+                    if (cached == null) {
+                        future.complete(null);
+                    } else if (cached.left().isPresent()) {
+                        if (scanner != null) {
+                            GlobalExecutors.ioExecutor.execute(() -> {
                                 try {
-                                    final DataInputStream input = new DataInputStream(new ByteArrayInputStream(cached.right().get()));
-                                    if (scanner != null) {
-                                        NbtIo.parse(input, scanner);
-                                        return null;
-                                    } else {
-                                        final CompoundTag compound = NbtIo.read(input);
-                                        return compound;
-                                    }
-                                } catch (IOException e) {
-                                    SneakyThrow.sneaky(e);
-                                    return null; // unreachable
+                                    cached.left().get().acceptAsRoot(scanner);
+                                    future.complete(null);
+                                } catch (Throwable t) {
+                                    future.completeExceptionally(t);
                                 }
-                            }, GlobalExecutors.ioExecutor)
-                            .thenAccept(future::complete)
-                            .exceptionally(throwable -> {
-                                future.completeExceptionally(throwable);
-                                return null;
                             });
+                        } else {
+                            future.complete(cached.left().get());
+                        }
+                    } else {
+                        CompletableFuture.supplyAsync(() -> {
+                                    try {
+                                        final DataInputStream input = new DataInputStream(new ByteArrayInputStream(cached.right().get()));
+                                        if (scanner != null) {
+                                            NbtIo.parse(input, scanner);
+                                            return null;
+                                        } else {
+                                            final CompoundTag compound = NbtIo.read(input);
+                                            return compound;
+                                        }
+                                    } catch (IOException e) {
+                                        SneakyThrow.sneaky(e);
+                                        return null; // unreachable
+                                    }
+                                }, GlobalExecutors.ioExecutor)
+                                .thenAccept(future::complete)
+                                .exceptionally(throwable -> {
+                                    future.completeExceptionally(throwable);
+                                    return null;
+                                });
+                    }
+                    continue;
                 }
-                continue;
+                scheduleChunkRead(pos, future, scanner);
+            } catch (Throwable t) {
+                LOGGER.error("Error reading chunk {}", new ChunkPos(pos), t);
+                future.completeExceptionally(t);
             }
-            scheduleChunkRead(pos, future, scanner);
         }
         return hasWork;
     }
@@ -333,7 +344,12 @@ public class C2MEStorageThread extends Thread {
         if (!this.writeBacklog.isEmpty()) {
             final long pos = this.writeBacklog.firstLongKey();
             final Either<CompoundTag, byte[]> nbt = this.writeBacklog.removeFirst();
-            writeChunk(pos, nbt);
+            try {
+                writeChunk(pos, nbt);
+            } catch (Throwable t) {
+                LOGGER.error("Error writing chunk {}", new ChunkPos(pos), t);
+                completeWriteFutures(pos, t);
+            }
             return true;
         }
         return false;
@@ -352,7 +368,9 @@ public class C2MEStorageThread extends Thread {
                     .distinct()
                     .toArray(CompletableFuture[]::new));
             while (!allFuture.isDone()) {
-                if (!handleTasks()) LockSupport.parkNanos("Waiting for pending chunk writes", SPIN_PARK_NANOS);
+                boolean hasWork = handleTasks();
+                hasWork = handlePendingReads() || hasWork;
+                if (!hasWork) LockSupport.parkNanos("Waiting for pending chunk writes", SPIN_PARK_NANOS);
             }
             runWriteFutureGC();
         }

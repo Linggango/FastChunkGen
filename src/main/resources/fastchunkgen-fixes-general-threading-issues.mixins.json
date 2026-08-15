@@ -2,7 +2,7 @@
   "parent": "fastchunkgen.mixins.json",
   "required": true,
   "package": "com.misanthropy.fastchunkgen.fixes.general.threading_issues.mixin",
-  "plugin": "com.misanthropy.fastchunkgen.base.common.ModuleMixinPlugin",
+  "plugin": "com.misanthropy.fastchunkgen.fixes.general.threading_issues.mixin.MixinPlugin",
   "refmap": "fastchunkgen.refmap.json",
   "mixins": [
     "MixinChunkHolder",

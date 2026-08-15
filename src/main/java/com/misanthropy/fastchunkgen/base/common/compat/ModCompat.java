@@ -38,6 +38,10 @@ public class ModCompat {
         return ModUtil.isModLoaded("modernfix");
     }
 
+    public static boolean isCanaryPresent() {
+        return ModUtil.isModLoaded("canary");
+    }
+
     private static Properties modernFixMixins() {
         if (modernFixMixins == null) {
             final Properties properties = new Properties();

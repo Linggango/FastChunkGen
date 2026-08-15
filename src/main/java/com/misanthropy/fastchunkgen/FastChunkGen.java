@@ -60,6 +60,9 @@ public class FastChunkGen {
         if (ModCompat.isLithiumFamilyPresent()) {
             LOGGER.info("Lithium-family mod detected, disabled our duplicate NBT copy patch");
         }
+        if (ModCompat.isCanaryPresent()) {
+            LOGGER.info("Canary detected, deferred our DistanceManager holder iteration patch to its chunk.replace_streams");
+        }
         if (ModCompat.isModernFixFeatureEnabled("mixin.perf.worldgen_allocation")) {
             if (com.misanthropy.fastchunkgen.opts.allocs.Config.overrideModernFixWorldGenAllocations) {
                 LOGGER.info("ModernFix worldgen_allocation detected, applied our world generation allocation patches ahead of it");

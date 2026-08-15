@@ -13,7 +13,7 @@ public class Config {
     public static final AutoSaveMode autoSaveMode = new ConfigSystem.ConfigAccessor()
             .key("generalOptimizations.autoSave.mode")
             .comment("VANILLA, ENHANCED (save during idle time) or PERIODIC (every 6000 ticks). Keep the quotes.")
-            .getEnum(AutoSaveMode.class, AutoSaveMode.VANILLA, AutoSaveMode.VANILLA);
+            .getEnum(AutoSaveMode.class, AutoSaveMode.ENHANCED, AutoSaveMode.VANILLA);
 
     public static final long autoSaveDelayMillis = new ConfigSystem.ConfigAccessor()
             .key("generalOptimizations.autoSave.delay")

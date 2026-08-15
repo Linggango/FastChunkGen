@@ -120,6 +120,7 @@ public abstract class MixinChunkHolder {
     @Redirect(method = "*", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ChunkHolder;updateChunkToSave(Ljava/util/concurrent/CompletableFuture;Ljava/lang/String;)V"))
     private void synchronizeCombineSavingFuture(ChunkHolder holder, CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> then, String thenDesc) {
         synchronized (this) {
+            // this!!
             this.updateChunkToSave(then.exceptionally(unused -> UNLOADED_CHUNK), thenDesc);
         }
     }

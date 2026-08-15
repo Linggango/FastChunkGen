@@ -70,8 +70,8 @@ public class FastChunkGen {
         if (ModCompat.isModernFixFeatureEnabled("mixin.perf.release_protochunks")
                 && com.misanthropy.fastchunkgen.threading.worldgen.ModuleEntryPoint.enabled) {
             LOGGER.warn("ModernFix mixin.perf.release_protochunks is enabled together with threaded world generation.");
-            LOGGER.warn("Both rewrite chunk generation futures. If you see stuck chunks, set mixin.perf.release_protochunks=false");
-            LOGGER.warn("in config/modernfix-mixins.properties, or threadedWorldGen.enabled=false in config/fastchunkgen.toml.");
+            LOGGER.warn("It reads ChunkMap.updatingChunkMap from scheduleChunkGeneration, so async scheduling was disabled..");
+            LOGGER.warn("Set mixin.perf.release_protochunks=false in config/modernfix-mixins.properties to get it back.");
         }
     }
 }

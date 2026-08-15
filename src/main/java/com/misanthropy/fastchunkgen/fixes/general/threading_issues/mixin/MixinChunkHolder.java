@@ -27,6 +27,9 @@ public abstract class MixinChunkHolder {
     @Final
     public static CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> UNLOADED_CHUNK_FUTURE;
     @Shadow
+    @Final
+    public static Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure> UNLOADED_CHUNK;
+    @Shadow
     private int ticketLevel;
 
     @Shadow
@@ -115,9 +118,9 @@ public abstract class MixinChunkHolder {
 
     @Dynamic
     @Redirect(method = "*", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ChunkHolder;updateChunkToSave(Ljava/util/concurrent/CompletableFuture;Ljava/lang/String;)V"))
-    private void synchronizeCombineSavingFuture(ChunkHolder holder, CompletableFuture<? extends Either<? extends ChunkAccess, ChunkHolder.ChunkLoadingFailure>> then, String thenDesc) {
+    private void synchronizeCombineSavingFuture(ChunkHolder holder, CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> then, String thenDesc) {
         synchronized (this) {
-            this.updateChunkToSave(then.exceptionally(unused -> null), thenDesc);
+            this.updateChunkToSave(then.exceptionally(unused -> UNLOADED_CHUNK), thenDesc);
         }
     }
 

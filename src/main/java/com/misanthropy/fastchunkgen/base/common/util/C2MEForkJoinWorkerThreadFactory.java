@@ -4,6 +4,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 
 public class C2MEForkJoinWorkerThreadFactory implements ForkJoinPool.ForkJoinWorkerThreadFactory {
     private final AtomicLong serial = new AtomicLong(0);
@@ -32,13 +33,20 @@ public class C2MEForkJoinWorkerThreadFactory implements ForkJoinPool.ForkJoinWor
 
     @Override
     public ForkJoinWorkerThread newThread(ForkJoinPool pool) {
-        return CFUtil.join(CompletableFuture.supplyAsync(() -> {
+        final CompletableFuture<C2MEForkJoinWorkerThread> future = CompletableFuture.supplyAsync(() -> {
             final C2MEForkJoinWorkerThread newThread = new C2MEForkJoinWorkerThread(pool);
             newThread.setName(String.format(namePattern, serial.incrementAndGet()));
             newThread.setPriority(priority);
             newThread.setDaemon(true);
             return newThread;
-        }, threadCreator));
+        }, threadCreator);
+        boolean interrupted = false;
+        while (!future.isDone()) {
+            LockSupport.parkNanos("Waiting for worker thread creation", 100_000L);
+            if (Thread.interrupted()) interrupted = true;
+        }
+        if (interrupted) Thread.currentThread().interrupt();
+        return future.join();
     }
 
     public ThreadGroup getThreadGroup() {
@@ -47,12 +55,6 @@ public class C2MEForkJoinWorkerThreadFactory implements ForkJoinPool.ForkJoinWor
 
     public static class C2MEForkJoinWorkerThread extends ForkJoinWorkerThread {
 
-        /**
-         * Creates a ForkJoinWorkerThread operating in the given pool.
-         *
-         * @param pool the pool this thread works in
-         * @throws NullPointerException if pool is null
-         */
         protected C2MEForkJoinWorkerThread(ForkJoinPool pool) {
             super(pool);
         }

@@ -7,7 +7,6 @@
   "mixins": [
     "aquifer.MixinAquiferSamplerImpl",
     "aquifer.MixinNoiseChunkGenerator",
-    "density_function_wrap.MixinNoiseChunk",
     "the_end_biome_cache.MixinTheEndBiomeSource"
   ]
 }

@@ -12,9 +12,6 @@ public class MixinPlugin extends ModuleMixinPlugin {
         if (mixinClassName.startsWith("com.misanthropy.fastchunkgen.opts.worldgen.vanilla.mixin.aquifer."))
             return Config.optimizeAquifer;
 
-        if (mixinClassName.startsWith("com.misanthropy.fastchunkgen.opts.worldgen.vanilla.mixin.density_function_wrap."))
-            return Config.optimizeDensityFunctionWrap;
-
         if (mixinClassName.startsWith("com.misanthropy.fastchunkgen.opts.worldgen.vanilla.mixin.the_end_biome_cache."))
             return Config.useEndBiomeCache;
 

@@ -23,14 +23,9 @@ public class ModuleEntryPoint {
         return FMLEnvironment.dist == Dist.CLIENT;
     }
 
-    private static int envTypeOffset() {
-        return isClientSide() ? -2 : 0;
-    }
-
     private static int parallelismFromCpu() {
         final int cpus = Runtime.getRuntime().availableProcessors();
-        final double raw = PlatformDependent.isWindows() ? (cpus / 1.6 - 2) : (cpus / 1.2 - 2);
-        return (int) raw + envTypeOffset();
+        return cpus - (isClientSide() ? 4 : 2);
     }
 
     private static int parallelismFromHeap() {
@@ -41,7 +36,7 @@ public class ModuleEntryPoint {
         } else {
             raw = (memGiB - (isClientSide() ? 1.2 : 0.6)) / 1.2;
         }
-        return (int) raw + envTypeOffset();
+        return (int) raw;
     }
 
     private static int computeDefaultParallelism() {

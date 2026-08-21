@@ -10,6 +10,11 @@ public class Config {
             .incompatibleMod("cavetweaks", "*")
             .getBoolean(true, false);
 
+    public static final boolean optimizeDensityFunctionWrap = new ConfigSystem.ConfigAccessor()
+            .key("vanillaWorldGenOptimizations.optimizeDensityFunctionWrap")
+            .comment("Look up density function wrappers by identity instead of by value. Terrain is unchanged.")
+            .getBoolean(true, false);
+
     public static final boolean useEndBiomeCache = new ConfigSystem.ConfigAccessor()
             .key("vanillaWorldGenOptimizations.useEndBiomeCache")
             .comment("Cache End biome lookups.")

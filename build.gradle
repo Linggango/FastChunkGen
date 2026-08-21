@@ -40,6 +40,7 @@ def mixinConfigs = [
         "${mod_id}-opts-allocs.mixins.json",
         "${mod_id}-opts-chunk-access.mixins.json",
         "${mod_id}-opts-chunkio.mixins.json",
+        "${mod_id}-opts-math.mixins.json",
         "${mod_id}-opts-scheduling.mixins.json",
         "${mod_id}-opts-worldgen-general.mixins.json",
         "${mod_id}-opts-worldgen-vanilla.mixins.json",

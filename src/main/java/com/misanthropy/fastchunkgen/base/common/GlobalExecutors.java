@@ -3,7 +3,6 @@ package com.misanthropy.fastchunkgen.base.common;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.misanthropy.fastchunkgen.base.ModuleEntryPoint;
 import com.misanthropy.fastchunkgen.base.common.util.C2MEForkJoinWorkerThreadFactory;
-import com.misanthropy.fastchunkgen.base.common.util.C2MENormalWorkerThreadFactory;
 
 import java.util.concurrent.*;
 
@@ -18,9 +17,6 @@ public class GlobalExecutors {
             true
     );
 
-    private static final C2MENormalWorkerThreadFactory ioFactory = new C2MENormalWorkerThreadFactory("fastchunkgen-io", "FastChunkGen IO worker #%d", Thread.NORM_PRIORITY - 1);
-
-    public static final ExecutorService ioExecutor = Executors.newFixedThreadPool(Math.max(2, GLOBAL_EXECUTOR_PARALLELISM / 2), ioFactory);
     public static final Executor invokingExecutor = r -> {
         if (Thread.currentThread().getThreadGroup() == factory.getThreadGroup()) {
             r.run();

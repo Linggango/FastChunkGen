@@ -25,6 +25,7 @@ public class FastChunkGen {
             "com.misanthropy.fastchunkgen.opts.allocs.ModuleEntryPoint",
             "com.misanthropy.fastchunkgen.opts.chunk_access.ModuleEntryPoint",
             "com.misanthropy.fastchunkgen.opts.chunkio.ModuleEntryPoint",
+            "com.misanthropy.fastchunkgen.opts.math.ModuleEntryPoint",
             "com.misanthropy.fastchunkgen.opts.scheduling.ModuleEntryPoint",
             "com.misanthropy.fastchunkgen.opts.worldgen.general.ModuleEntryPoint",
             "com.misanthropy.fastchunkgen.opts.worldgen.vanilla.ModuleEntryPoint",

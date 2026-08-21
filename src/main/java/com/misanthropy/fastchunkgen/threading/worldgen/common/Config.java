@@ -21,6 +21,12 @@ public class Config {
             .getBoolean(true, false)
             && !ModCompat.isModernFixFeatureEnabled("mixin.perf.release_protochunks");
 
+    // If you are having issues with pre-generating. Disable this!
+    public static final boolean allowGenerationCancellation = new ConfigSystem.ConfigAccessor()
+            .key("threadedWorldGen.allowGenerationCancellation")
+            .comment("Abort an in-progress generation step when the chunk is no longer requested. Set to false if a pregenerator reports skipped chunks.")
+            .getBoolean(true, false);
+
     public static void init() {
     }
 

@@ -90,6 +90,7 @@ public class ChunkStatusUtils {
     }
 
     public static boolean isCancelled(ChunkHolder holder, ChunkStatus targetStatus) {
+        if (!Config.allowGenerationCancellation) return false;
         return ChunkLevel.generationStatus(holder.getTicketLevel()).getIndex() < targetStatus.getIndex();
     }
 

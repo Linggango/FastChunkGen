@@ -5,6 +5,7 @@
   "plugin": "com.misanthropy.fastchunkgen.fixes.worldgen.threading_issues.MixinPlugin",
   "refmap": "fastchunkgen.refmap.json",
   "mixins": [
+    "compat.MixinBlueprintTreeFeature",
     "deadlocks.MixinDataFixerType",
     "threading.MixinChunk",
     "threading.MixinDesertTempleGenerator",

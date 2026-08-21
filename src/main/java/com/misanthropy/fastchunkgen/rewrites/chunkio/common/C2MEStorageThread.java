@@ -70,6 +70,7 @@ public class C2MEStorageThread extends Thread {
     private final ObjectOpenHashSet<CompletableFuture<Void>> writeFutures = new ObjectOpenHashSet<>();
     private final Long2ObjectOpenHashMap<ObjectArrayList<CompletableFuture<Void>>> writeCompletions = new Long2ObjectOpenHashMap<>();
     private final Object sync = new Object();
+    private volatile boolean waiting = false;
 
     public C2MEStorageThread(Path directory, boolean dsync, String name) {
         this.storage = new RegionFileStorage(directory, dsync);
@@ -113,10 +114,13 @@ public class C2MEStorageThread extends Thread {
                         }
                     }
                     synchronized (sync) {
-                        if (this.hasPendingTasks() || this.closing.get()) continue main_loop;
+                        this.waiting = true;
                         try {
+                            if (this.hasPendingTasks() || this.closing.get()) continue main_loop;
                             sync.wait();
                         } catch (InterruptedException ignored) {
+                        } finally {
+                            this.waiting = false;
                         }
                     }
                 }
@@ -148,6 +152,7 @@ public class C2MEStorageThread extends Thread {
     }
 
     private void wakeUp() {
+        if (!this.waiting) return;
         synchronized (sync) {
             sync.notifyAll();
         }
@@ -296,7 +301,7 @@ public class C2MEStorageThread extends Thread {
                         future.complete(null);
                     } else if (cached.left().isPresent()) {
                         if (scanner != null) {
-                            GlobalExecutors.ioExecutor.execute(() -> {
+                            GlobalExecutors.executor.execute(() -> {
                                 try {
                                     cached.left().get().acceptAsRoot(scanner);
                                     future.complete(null);
@@ -322,7 +327,7 @@ public class C2MEStorageThread extends Thread {
                                         SneakyThrow.sneaky(e);
                                         return null; // unreachable
                                     }
-                                }, GlobalExecutors.ioExecutor)
+                                }, GlobalExecutors.executor)
                                 .thenAccept(future::complete)
                                 .exceptionally(throwable -> {
                                     future.completeExceptionally(throwable);
@@ -399,7 +404,7 @@ public class C2MEStorageThread extends Thread {
                     SneakyThrow.sneaky(t);
                     return null; // Unreachable anyway
                 }
-            }, GlobalExecutors.ioExecutor).handle((compound, throwable) -> {
+            }, GlobalExecutors.executor).handle((compound, throwable) -> {
                 if (throwable != null) future.completeExceptionally(throwable);
                 else future.complete(compound);
                 return null;
@@ -446,7 +451,7 @@ public class C2MEStorageThread extends Thread {
                     SneakyThrow.sneaky(t);
                     return null; // Unreachable anyway
                 }
-            }, GlobalExecutors.ioExecutor).thenApplyAsync(bytes -> {
+            }, GlobalExecutors.executor).thenApplyAsync(bytes -> {
                 if (nbt != this.cache.get(pos)) return Boolean.FALSE;
                 try {
                     final ChunkPos pos1 = new ChunkPos(pos);
